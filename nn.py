@@ -5,17 +5,29 @@ from sklearn.utils import shuffle
 import pickle
 
 from tensorflow.keras.datasets import mnist
-from functions import ReLU, Sigmoid, Softmax, MSE, CategoricalCrossentropy
+from loss_func import MSE, CategoricalCrossentropy
+from activation_func import (
+    ReLU,
+    LeakyReLU,
+    ELU,
+    Swish,
+    Tanh,
+    Sigmoid,
+    Softmax,
+    SoftPlus,
+)
 
 
 class NeuralNetwork:
-    def __init__(self, input, labels):
+    def __init__(self, input, labels, adapt_lr=True, lr_step=10):
         self.input = input
         self.labels = labels
         self.layers = []
         self.loss = None
         self.best_model = []
         self.best_loss = np.inf
+        self.adapt_lr = adapt_lr
+        self.lr_step = lr_step
 
     def add(self, layer):
         self.layers.append(layer)
@@ -40,14 +52,13 @@ class NeuralNetwork:
         loss = 0
         for i, input in enumerate(input_batch):
             output = self.forward(input)
-            loss += self.loss(output, labels_batch[i])
+            l, err = self.loss(output, labels_batch[i])
+            loss += l
             # Check for softmax and categorical crossentropy
             if isinstance(self.loss, CategoricalCrossentropy) and isinstance(
                 self.layers[-1].activation, Softmax
             ):
                 err = self.layers[-1].a - labels_batch[i]
-            else:
-                err = self.loss.derivative(self.layers[-1].a, labels_batch[i])
             self.backward(err, input_batch.shape[0])
         return np.mean(loss)
 
@@ -55,14 +66,21 @@ class NeuralNetwork:
         for layer in reversed(self.layers):
             err = layer.backward(err, batch_size)
 
+    def adaptive_lr(self, epoch, lr):
+        if epoch % self.lr_step == 0:
+            return lr / 2
+        return lr
+
     def update(self, lr):
         for layer in self.layers:
             layer.update(lr)
 
     def train(self, epochs, batch_size, lr):
         print("Training...")
-        for _ in range(epochs):
+        for j in range(epochs):
             loss = 0
+            if self.adapt_lr:
+                lr = self.adaptive_lr(j, lr)
             for i in range(len(self.input) // batch_size):
                 input_batch = self.input[i * batch_size : (i + 1) * batch_size]
                 labels_batch = self.labels[i * batch_size : (i + 1) * batch_size]
@@ -90,7 +108,9 @@ class NeuralNetwork:
 
 
 class DenseLayer:
-    def __init__(self, input_size, output_size, activation, use_bias=True):
+    def __init__(
+        self, input_size, output_size, activation, use_bias=True, batch_norm=True
+    ):
         self.input = input
         self.input_size = input_size
         self.output_size = output_size
@@ -111,8 +131,7 @@ class DenseLayer:
 
     def forward(self):
         self.z = np.dot(self.input, self.weights) + self.biases
-        self.a = self.activation(self.z)
-        self.derivative = self.activation.derivative(self.z)
+        self.a, self.derivative = self.activation(self.z)
         self.input_reshaped = np.tile(self.input[:, None], (1, self.weights.shape[1]))
 
     def backward(self, err, batch_size):
@@ -144,8 +163,14 @@ def data_preprocessing():
     labels_enc = one_hot_enc(train_y)
     test_y_enc = one_hot_enc(test_y)
     input = train_x.reshape(60000, 784)
+    input = normalization(input, 0, 255)
     test_x = test_x.reshape(10000, 784)
+    test_x = normalization(test_x, 0, 255)
     return (input, labels_enc, test_x, test_y_enc)
+
+
+def normalization(arr, min, max):
+    return (arr - min) / (max - min)
 
 
 def one_hot_enc(labels):
@@ -172,28 +197,31 @@ def accuracy(nn, x, y_enc):
 if __name__ == "__main__":
     start = time()
 
+    # TO DO: Swish, SoftPlus fix
+    # best test acc so far: 88.92%
+
     # set data
     input, labels_enc, test_x, test_y_enc = data_preprocessing()
 
+    # hyperparameters
+    epochs = 200
+    batch_size = 64
+    lr = 0.01
+    lr_step = 100
+
     # NN architecture
-    nn = NeuralNetwork(input, labels_enc)
-    nn.add(DenseLayer(784, 100, ReLU()))
-    nn.add(DenseLayer(100, 50, ReLU()))
-    nn.add(DenseLayer(50, 10, Softmax()))
+    nn = NeuralNetwork(input, labels_enc, lr_step=lr_step)
+    nn.add(DenseLayer(784, 128, ReLU()))
+    nn.add(DenseLayer(128, 10, Softmax()))
     nn.add_loss(CategoricalCrossentropy())
     nn.summary()
 
-    # hyperparameters (relu + softmax + categorical crossentropy)
-    epochs = 30
-    batch_size = 60
-    lr = 0.0001
-
     # train
-    # nn.train(epochs, batch_size, lr)
+    nn.train(epochs, batch_size, lr)
     end = time()
     print(f"Training time: {end - start}")
-    # nn.save_model("models/model.pickle")
-    nn.load_model("models/model2.pickle")
+    nn.save_model("models/model.pickle")
+    # nn.load_model("models/model2.pickle")
 
     print(f"Train Accuracy: {accuracy(nn, input, labels_enc)}%")
     print(f"Test Accuracy: {accuracy(nn, test_x, test_y_enc)}%")
