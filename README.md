@@ -4,14 +4,23 @@ Implementation of neural networks from scratch - no machine learning libraries, 
 1) Activation functions
    - Sigmoid
    - ReLU
+   - Leaky ReLU
+   - ELU
    - Softmax (for output layer only)
    - Tanh
    - Softplus
+   - Swish (to be added)
 2) Loss functions
    - MSE
    - Categorical cross entropy
-3) Layers
+3) Layers types
    - Dense layer
+   - CNN (to be added)
+   - LSTM (to be added)
 4) Forward step and backpropagation
 5) Adaptive learning rate
-6) Data normalization - to [0,1] 
+6) Data normalization - to values in interval [0,1] 
+
+## Network performance
+### MNIST Digits dataset:
+- Test accuracy: 88.92%
