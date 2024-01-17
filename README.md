@@ -5,9 +5,13 @@ Implementation of neural networks from scratch - no machine learning libraries, 
   - Sigmoid
   - ReLU
   - Softmax (for output layer only)
+  - Tanh
+  - Softplus
 2) Loss functions
   - MSE
   - Categorical cross entropy
 3) Layers
   - Dense layer
 4) Forward step and backpropagation
+5) Adaptive learning rate
+6) Data normalization - to [0,1] 
